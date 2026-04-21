@@ -86,6 +86,8 @@ class ErazrTrainer(Seq2SeqTrainer):
         self.tracr_model = kwargs.pop('tracr_model', None)
         self.skip_node_loss_if_higher_sparsity = kwargs.pop('skip_node_loss_if_higher_sparsity', False)
         self.zero_ablation = kwargs.pop('zero_ablation', False)
+        self.mean_ablation = kwargs.pop('mean_ablation', False)
+        self._mean_x = None
         self.disable_node_loss = kwargs.pop('disable_node_loss', False)
         super().__init__(*args, **kwargs)
 
@@ -121,17 +123,43 @@ class ErazrTrainer(Seq2SeqTrainer):
         else:
             return self.target_node_sparsity
 
+    def _compute_mean_activations(self):
+        from torch.utils.data import DataLoader
+        device = next(self.tracr_model.parameters()).device
+        loader = DataLoader(self.train_dataset, batch_size=32, collate_fn=self.data_collator)
+        sum_x = None
+        count = 0
+        for batch in loader:
+            input_ids = batch['input_ids'].to(device)
+            with torch.no_grad():
+                writer_states = self.tracr_model(
+                    input_ids=input_ids,
+                    output_writer_states=True,
+                    return_dict=True
+                ).writer_states  # (writers, batch, seq, hidden)
+            batch_sum = writer_states.sum(dim=1)
+            sum_x = batch_sum if sum_x is None else sum_x + batch_sum
+            count += input_ids.shape[0]
+        self._mean_x = (sum_x / count).detach()
+
+    def _get_mean_activations(self, batch_size, device):
+        if self._mean_x is None:
+            self._compute_mean_activations()
+        return self._mean_x.unsqueeze(1).expand(-1, batch_size, -1, -1).to(device)
+
     def compute_loss(self, model, inputs, return_outputs=False):
         _ = inputs.pop("labels")
         corr_input_ids = inputs.pop("corr_input_ids")
         input_ids = inputs.pop("input_ids")
-        
+
         with torch.no_grad():
             # First get the logits from the Tracr (still bundled up as Erazr) model
             logits_tracr = self.tracr_model(input_ids=input_ids, **inputs, return_dict=False)[0]
             # Now run the corrupted inputs through it, and retain the activations
             if self.zero_ablation:
                 corr_x = None
+            elif self.mean_ablation:
+                corr_x = self._get_mean_activations(input_ids.shape[0], input_ids.device)
             else:
                 corr_x = self.tracr_model(input_ids=corr_input_ids, **inputs, output_writer_states=True, return_dict=True).writer_states
         
@@ -251,6 +279,10 @@ class DataTrainingArguments:
     zero_ablation: Optional[bool] = field(
         default=False,
         metadata={"help": "Whether to zero out the ablated tokens."}
+    )
+    mean_ablation: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to use mean activations for ablated edges."}
     )
     disable_node_loss: Optional[bool] = field(
         default=False,
@@ -609,6 +641,7 @@ def main():
         num_sparsity_warmup_steps=data_args.num_sparsity_warmup_steps,
         warmup_type=data_args.warmup_type,
         zero_ablation=data_args.zero_ablation,
+        mean_ablation=data_args.mean_ablation,
         disable_node_loss=data_args.disable_node_loss,
     )
 
@@ -659,6 +692,8 @@ def main():
         with torch.no_grad():
             if data_args.zero_ablation:
                 corr_x = None
+            elif data_args.mean_ablation:
+                corr_x = trainer._get_mean_activations(input_ids.shape[0], input_ids.device)
             else:
                 corr_x = tracr_model(corr_input_ids, output_writer_states=True, return_dict=True).writer_states
             outputs = model(input_ids, corr_x=corr_x, return_dict=True)
