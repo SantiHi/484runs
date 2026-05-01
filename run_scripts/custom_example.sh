@@ -24,8 +24,8 @@ N_VAL=10 # The val split size
 # If you want to always keep embedding nodes, remove the --with_embedding_nodes flag
 # That flag, when set, also models masks over the embedding nodes
 
-WANDB_MODE=disabled python src/prune/fpt2_custom.py \
-    --report_to wandb \
+python src/prune/fpt2_custom.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/example_custom.jsonl \

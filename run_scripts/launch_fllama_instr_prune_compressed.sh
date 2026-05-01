@@ -48,7 +48,7 @@ mkdir -p $OUTPUT_DIR
 
 srun bash run_scripts/wrapper_launch_fllama_prune.sh \
 src/prune/fllama_boolean_expressions_ip_compressed.py \
---report_to wandb \
+--report_to none \
 --do_train \
 --dataset_path ./data/datasets/merged/boolean_expressions_inhouse_big/ \
 --initialize_from meta-llama/CodeLlama-13b-Instruct-hf \

@@ -33,8 +33,8 @@ if [ "$FREEZE_PROJECTIONS" = "true" ]; then
     FREEZE_FLAG="--freeze_projections"
 fi
 
-WANDB_MODE=disabled python src/prune/fpt2_ioi_compressed.py \
-    --report_to wandb \
+python src/prune/fpt2_ioi_compressed.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/ioi/ \
@@ -51,7 +51,7 @@ WANDB_MODE=disabled python src/prune/fpt2_ioi_compressed.py \
     --reg_layer_learning_rate $RLLR \
     --max_steps $TOTAL \
     --warmup_steps 200 \
-    --eval_strategy steps \
+    --evaluation_strategy steps \
     --eval_steps 64 \
     --save_steps 64 \
     --logging_steps 8 \

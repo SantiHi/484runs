@@ -14,8 +14,8 @@ TAG="mean_ablation"
 N_TRAIN=1000000
 N_VAL=150
 
-WANDB_MODE=disabled python src/prune/fpt2_gt.py \
-    --report_to wandb \
+python src/prune/fpt2_gt.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/gt/ \
@@ -32,7 +32,7 @@ WANDB_MODE=disabled python src/prune/fpt2_gt.py \
     --reg_layer_learning_rate $RLLR \
     --max_steps $TOTAL \
     --warmup_steps 200 \
-    --eval_strategy steps \
+    --evaluation_strategy steps \
     --eval_steps 64 \
     --save_steps 64 \
     --logging_steps 8 \

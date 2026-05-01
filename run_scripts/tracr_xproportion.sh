@@ -7,8 +7,8 @@ RLLR=0.0001
 TOTAL=720
 WARMUP=640
 
-WANDB_MODE=disabled python src/prune/erazr_xproportion.py \
-    --report_to wandb \
+python src/prune/erazr_xproportion.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/xproportion-t4-s4 \

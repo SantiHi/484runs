@@ -11,8 +11,8 @@ WARMUP=5900
 COMPRESSION_DIM=16          # Latent dimension k (0 = disabled). Tracr models are small, so use small k.
 COMPRESSION_INIT="gaussian" # "gaussian", "orthogonal", or path to pretrained weights
 
-WANDB_MODE=disabled python src/prune/erazr_reverse_compressed.py \
-    --report_to wandb \
+python src/prune/erazr_reverse_compressed.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/reverse-t3-s3 \

@@ -28,8 +28,8 @@ N_VAL=150 # The val split size
 # If you want to always keep embedding nodes, remove the --with_embedding_nodes flag
 # That flag, when set, also models masks over the embedding nodes
 
-WANDB_MODE=disabled python src/prune/fpt2_gp.py \
-    --report_to wandb \
+python src/prune/fpt2_gp.py \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/gp/ \
@@ -46,7 +46,7 @@ WANDB_MODE=disabled python src/prune/fpt2_gp.py \
     --reg_layer_learning_rate $RLLR \
     --max_steps $TOTAL \
     --warmup_steps 200 \
-    --eval_strategy steps \
+    --evaluation_strategy steps \
     --eval_steps 64 \
     --save_steps 64 \
     --logging_steps 8 \
