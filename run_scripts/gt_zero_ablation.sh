@@ -32,7 +32,7 @@ python src/prune/fpt2_gt.py \
     --reg_layer_learning_rate $RLLR \
     --max_steps $TOTAL \
     --warmup_steps 200 \
-    --eval_strategy steps \
+    --evaluation_strategy steps \
     --eval_steps 64 \
     --save_steps 64 \
     --logging_steps 8 \
