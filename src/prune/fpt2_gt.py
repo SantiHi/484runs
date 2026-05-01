@@ -89,13 +89,42 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
         self.warmup_type = kwargs.pop('warmup_type', 'linear')
         self.gpt2_model = kwargs.pop('gpt2_model', None)
         self.skip_layer_loss_if_higher_sparsity = kwargs.pop('skip_layer_loss_if_higher_sparsity', False)
-        
+        self.zero_ablation = kwargs.pop('zero_ablation', False)
+        self.mean_ablation = kwargs.pop('mean_ablation', False)
+        self._mean_x = None
         self.digits = None
         self.device_count = torch.cuda.device_count()
-                
+
         super().__init__(*args, **kwargs)
-        
+
         self.tokenizer = kwargs.pop('tokenizer', None)
+
+    def _compute_mean_activations(self):
+        from torch.utils.data import DataLoader
+        device = next(self.gpt2_model.parameters()).device
+        loader = DataLoader(self.train_dataset, batch_size=32, collate_fn=self.data_collator)
+        sum_x = None
+        count = 0
+        for batch in loader:
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch.get('attention_mask', None)
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+            with torch.no_grad():
+                writer_states = self.gpt2_model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    output_writer_states=True,
+                ).writer_states.transpose(0, 1)  # (writers, batch, seq, hidden)
+            batch_sum = writer_states.sum(dim=1)
+            sum_x = batch_sum if sum_x is None else sum_x + batch_sum
+            count += input_ids.shape[0]
+        self._mean_x = (sum_x / count).detach()
+
+    def _get_mean_activations(self, batch_size, device):
+        if self._mean_x is None:
+            self._compute_mean_activations()
+        return self._mean_x.unsqueeze(1).expand(-1, batch_size, -1, -1).to(device)
 
     def get_current_edge_target_sparsity(self, global_step):
         if global_step < self.num_edge_sparsity_warmup_steps:
@@ -150,12 +179,16 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
             gpt2_logits = torch.nn.functional.log_softmax(gpt2_logits, dim=-1)
             
             # Now run the corrupted inputs through it, and retain the activations
-            corr_x = self.gpt2_model(
-                input_ids=corr_input_ids, 
-                **inputs, 
-                output_writer_states=True
-            ).writer_states
-            corr_x = corr_x.transpose(0, 1)
+            if self.zero_ablation:
+                corr_x = None
+            elif self.mean_ablation:
+                corr_x = self._get_mean_activations(input_ids.shape[0], input_ids.device)
+            else:
+                corr_x = self.gpt2_model(
+                    input_ids=corr_input_ids,
+                    **inputs,
+                    output_writer_states=True
+                ).writer_states.transpose(0, 1)
         
         outputs = model(
             input_ids=input_ids,
@@ -279,6 +312,14 @@ class DataTrainingArguments:
     disable_node_loss: Optional[bool] = field(
         default=False,
         metadata={"help": "Whether to disable node loss."}
+    )
+    zero_ablation: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to zero out ablated edges."}
+    )
+    mean_ablation: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to use mean activations for ablated edges."}
     )
 
 @dataclass
@@ -632,6 +673,8 @@ def main():
         skip_layer_loss_if_higher_sparsity=data_args.stop_optimizing_layer_if_higher_sparsity,
         num_sparsity_warmup_steps=data_args.num_sparsity_warmup_steps,
         warmup_type=data_args.warmup_type,
+        zero_ablation=data_args.zero_ablation,
+        mean_ablation=data_args.mean_ablation,
     )
 
     # Training
