@@ -10,10 +10,7 @@ from datasets import load_from_disk
 
 import sys
 sys.path.append(
-    os.path.join(
-        os.getcwd(),
-        "src/modeling/"
-    )
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modeling")
 )   # Very hacky but the imports are annoying otherwise
 from modeling_fpt2 import FPT2LMHeadModel
 

@@ -8,7 +8,7 @@ TOTAL=6000
 WARMUP=5900
 
 WANDB_MODE=disabled python src/prune/erazr_reverse.py \
-    --report_to wandb \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/reverse-t3-s3 \

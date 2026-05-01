@@ -34,7 +34,7 @@ if [ "$FREEZE_PROJECTIONS" = "true" ]; then
 fi
 
 WANDB_MODE=disabled python src/prune/fpt2_ioi_compressed.py \
-    --report_to wandb \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/ioi/ \

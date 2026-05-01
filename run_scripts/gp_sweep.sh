@@ -29,7 +29,7 @@ N_VAL=150 # The val split size
 # That flag, when set, also models masks over the embedding nodes
 
 WANDB_MODE=disabled python src/prune/fpt2_gp.py \
-    --report_to wandb \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/gp/ \

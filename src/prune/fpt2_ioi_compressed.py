@@ -60,10 +60,7 @@ from torch.optim import AdamW
 
 import sys
 sys.path.append(
-    os.path.join(
-        os.getcwd(),
-        "src/modeling/"
-    )
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modeling")
 )   # Very hacky but the imports are annoying otherwise
 from modeling_fpt2 import FPT2LMHeadModel as FPT2LMHeadModelOriginal
 from modeling_fpt2_compressed import FPT2LMHeadModel

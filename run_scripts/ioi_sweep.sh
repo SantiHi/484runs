@@ -42,7 +42,7 @@ N_VAL=200 # The val split size
 # conda activate moa   
 
 WANDB_MODE=disabled python src/prune/fpt2_ioi.py \
-    --report_to wandb \
+    --report_to none \
     --do_train \
     --do_eval \
     --dataset_path ./data/datasets/ioi/ \
