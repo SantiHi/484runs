@@ -54,7 +54,9 @@ import torch.nn as nn
 from torch.optim import AdamW
 
 import sys
-sys.path.append("/scratch/gpfs/ab4197/p-printer/tracr/tt/")
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modeling")
+)
 from modeling_erazr import ErazrModel, ErazrTokenizer, ErazrConfig, get_config_weights_and_vocab
 
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/text-classification/requirements.txt")

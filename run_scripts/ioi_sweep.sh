@@ -41,7 +41,7 @@ N_VAL=200 # The val split size
 # source /scratch/gpfs/ab4197/anaconda3/etc/profile.d/conda.sh
 # conda activate moa   
 
-WANDB_MODE=disabled python src/prune/fpt2_ioi.py \
+python src/prune/fpt2_ioi.py \
     --report_to none \
     --do_train \
     --do_eval \

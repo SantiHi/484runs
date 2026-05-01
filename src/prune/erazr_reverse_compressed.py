@@ -56,10 +56,7 @@ from torch.optim import AdamW
 
 import sys
 sys.path.append(
-    os.path.join(
-        os.getcwd(),
-        "src/modeling/"
-    )
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modeling")
 )
 from modeling_erazr import ErazrModelForSequenceTransformation as ErazrModelOriginal, ErazrTokenizer, ErazrConfig, get_config_weights_and_vocab
 from modeling_erazr_compressed import ErazrModelForSequenceTransformation

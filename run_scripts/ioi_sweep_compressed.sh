@@ -33,7 +33,7 @@ if [ "$FREEZE_PROJECTIONS" = "true" ]; then
     FREEZE_FLAG="--freeze_projections"
 fi
 
-WANDB_MODE=disabled python src/prune/fpt2_ioi_compressed.py \
+python src/prune/fpt2_ioi_compressed.py \
     --report_to none \
     --do_train \
     --do_eval \

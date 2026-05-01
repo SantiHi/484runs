@@ -14,7 +14,7 @@ TAG="zero_ablation"
 N_TRAIN=1000000
 N_VAL=150
 
-WANDB_MODE=disabled python src/prune/fpt2_gt.py \
+python src/prune/fpt2_gt.py \
     --report_to none \
     --do_train \
     --do_eval \

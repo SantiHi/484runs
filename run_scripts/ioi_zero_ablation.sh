@@ -14,7 +14,7 @@ TAG="zero_ablation"
 N_TRAIN=1000000
 N_VAL=200
 
-WANDB_MODE=disabled python src/prune/fpt2_ioi.py \
+python src/prune/fpt2_ioi.py \
     --report_to none \
     --do_train \
     --do_eval \

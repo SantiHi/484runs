@@ -7,7 +7,7 @@ RLLR=0.001
 TOTAL=6000
 WARMUP=5900
 
-WANDB_MODE=disabled python src/prune/erazr_reverse.py \
+python src/prune/erazr_reverse.py \
     --report_to none \
     --do_train \
     --do_eval \
