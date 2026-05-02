@@ -95,7 +95,7 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
     def _compute_mean_activations(self):
         from torch.utils.data import DataLoader
         device = next(self.gpt2_model.parameters()).device
-        loader = DataLoader(self.train_dataset, batch_size=32, collate_fn=self.data_collator)
+        loader = DataLoader(self.train_dataset, batch_size=32, collate_fn=self.data_collator, drop_last=True)
         sum_x = None
         count = 0
         for batch in loader:
@@ -109,15 +109,15 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
                     attention_mask=attention_mask,
                     output_writer_states=True,
                 ).writer_states.transpose(0, 1)  # (writers, batch, seq, hidden)
-            batch_sum = writer_states.sum(dim=(1, 2))  # (writers, hidden)
+            batch_sum = writer_states.sum(dim=1)
             sum_x = batch_sum if sum_x is None else sum_x + batch_sum
-            count += input_ids.shape[0] * input_ids.shape[1]
-        self._mean_x = (sum_x / count).detach()  # (writers, hidden)
+            count += input_ids.shape[0]
+        self._mean_x = (sum_x / count).detach()
 
-    def _get_mean_activations(self, batch_size, seq_len, device):
+    def _get_mean_activations(self, batch_size, device):
         if self._mean_x is None:
             self._compute_mean_activations()
-        return self._mean_x.unsqueeze(1).unsqueeze(2).expand(-1, batch_size, seq_len, -1).to(device)
+        return self._mean_x.unsqueeze(1).expand(-1, batch_size, -1, -1).to(device)
 
     def get_current_edge_target_sparsity(self, global_step):
         if global_step < self.num_edge_sparsity_warmup_steps:
@@ -166,7 +166,7 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
             if self.zero_ablation:
                 corr_x = None
             elif self.mean_ablation:
-                corr_x = self._get_mean_activations(input_ids.shape[0], input_ids.shape[1], input_ids.device)
+                corr_x = self._get_mean_activations(input_ids.shape[0], input_ids.device)
             else:
                 corr_x = self.gpt2_model(
                     input_ids=corr_input_ids,
