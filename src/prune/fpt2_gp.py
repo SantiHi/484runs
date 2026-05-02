@@ -108,7 +108,7 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     output_writer_states=True,
-                ).writer_states.transpose(0, 1)  # (writers, batch, seq, hidden)
+                ).writer_states  # (writers, batch, seq, hidden)
             batch_sum = writer_states.sum(dim=1)
             sum_x = batch_sum if sum_x is None else sum_x + batch_sum
             count += input_ids.shape[0]
@@ -172,7 +172,7 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
                     input_ids=corr_input_ids,
                     **inputs,
                     output_writer_states=True
-                ).writer_states.transpose(0, 1)
+                ).writer_states
         
         outputs = model(
             input_ids=input_ids,
