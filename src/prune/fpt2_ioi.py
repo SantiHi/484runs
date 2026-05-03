@@ -689,7 +689,7 @@ def main():
         with_embedding_nodes=data_args.with_embedding_nodes,
         disable_linear_regularization_term=data_args.disable_linear_reg_term,
     )
-    model.reset_all_log_alphas() # note: overrides any previous log_alphas, remove if not initializing from gpt-2!
+    #model.reset_all_log_alphas() # note: overrides any previous log_alphas, remove if not initializing from gpt-2!
     gpt2_model = FPT2LMHeadModel.from_pretrained(
         "gpt2",
         with_embedding_nodes=data_args.with_embedding_nodes,
