@@ -184,8 +184,8 @@ class FPT2InfoTrainer(Seq2SeqTrainer):
                     input_ids=corr_input_ids,
                     **inputs,
                     output_writer_states=True
-                ).writer_states
-        
+                ).writer_states.transpose(0, 1)
+
         outputs = model(
             input_ids=input_ids,
             **inputs, 
