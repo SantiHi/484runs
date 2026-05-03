@@ -456,22 +456,52 @@ def warmstart_ep_from_eap(
     if you want a clean slate).
     """
     # ---- step 0: harvest (writer, reader, score) tuples from EAP graph ---
-    if not hasattr(eap_graph, "edges"):
+    # Accept either a Graph object (with .edges) or a list of dicts.
+    if isinstance(eap_graph, list):
+        edge_iter = eap_graph
+        get_score = lambda e: e.get('score')
+        get_parent = lambda e: e['parent']
+        get_child  = lambda e: e['child']
+    elif hasattr(eap_graph, "edges"):
+        edge_iter = eap_graph.edges.values()
+        get_score = lambda e: getattr(e, 'score', None)
+        get_parent = lambda e: e.parent.name
+        get_child  = lambda e: e.child.name
+    else:
         raise AttributeError(
-            "eap_graph has no `.edges`. Pass the Graph object, not a "
-            "subobject."
+            "eap_graph must be either a list of {'parent','child','score'} "
+            "dicts or an object with `.edges`."
         )
 
     triples: List[Tuple[WriterKey, ReaderKey, float]] = []
     skipped = 0
-    for edge in eap_graph.edges.values():
-        score = getattr(edge, "score", None)
+    for edge in edge_iter:
+        score = get_score(edge)
         if score is None:
             skipped += 1
             continue
         try:
-            w, r = _eap_edge_endpoints(edge)
-        except (ValueError, AttributeError):
+            p_kind, p_layer, p_head, _ = _parse_eap_node_name(get_parent(edge))
+            c_kind, c_layer, c_head, c_qkv = _parse_eap_node_name(get_child(edge))
+            # writer side
+            if p_kind == "embed":
+                w: WriterKey = ("embed", None, None)
+            elif p_kind == "attn_out":
+                w = ("attn", p_layer, p_head)
+            elif p_kind == "mlp":
+                w = ("mlp", p_layer, None)
+            else:
+                raise ValueError(f"bad parent kind {p_kind}")
+            # reader side
+            if c_kind == "attn_in":
+                r: ReaderKey = (f"attn_{c_qkv}", c_layer, c_head)
+            elif c_kind == "mlp":
+                r = ("mlp", c_layer, None)
+            elif c_kind == "logits":
+                r = ("logits", None, None)
+            else:
+                raise ValueError(f"bad child kind {c_kind}")
+        except (ValueError, AttributeError, KeyError):
             skipped += 1
             continue
         triples.append((w, r, float(score)))
