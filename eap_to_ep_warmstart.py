@@ -45,11 +45,11 @@ A1. eap.graph.Edge has a `parent` and `child` attribute, each of which
     (This is the convention in hannamw/EAP-IG's graph.py as of 2024-2025.)
 
 A2. The EP FPT2 model exposes its per-edge mask parameters via
-        model.transformer.h[layer].attn.{q|k|v}_read_log_alphas
-        model.transformer.h[layer].attn.attn_write_log_alphas
-        model.transformer.h[layer].mlp.read_log_alphas
-        model.transformer.h[layer].mlp.write_log_alphas
-        model.transformer.final_read_log_alphas
+        model.transformer.h[layer].q_read_log_alphas
+        model.transformer.h[layer].k_read_log_alphas
+        model.transformer.h[layer].v_read_log_alphas
+        model.transformer.h[layer].mlp_read_log_alphas
+        model.final_read_log_alphas  (or model.transformer.final_read_log_alphas)
     Each "read" tensor has shape `[n_writers]` where the writer index
     enumerates upstream nodes in a fixed canonical order:
         [embed, a0.h0, ..., a0.h{H-1}, m0, a1.h0, ..., m{L-1}]
@@ -233,16 +233,19 @@ def _resolve_reader_log_alpha(ep_model, reader: ReaderKey) -> torch.nn.Parameter
         ) from e
 
     if kind == "attn_q":
-        return h[layer].attn.q_read_log_alphas
+        return h[layer].q_read_log_alphas
     if kind == "attn_k":
-        return h[layer].attn.k_read_log_alphas
+        return h[layer].k_read_log_alphas
     if kind == "attn_v":
-        return h[layer].attn.v_read_log_alphas
+        return h[layer].v_read_log_alphas
     if kind == "mlp":
-        return h[layer].mlp.read_log_alphas
+        return h[layer].mlp_read_log_alphas
     if kind == "logits":
-        # Final read into the unembedding lives at the model root in EP.
-        return ep_model.transformer.final_read_log_alphas
+        if hasattr(ep_model, 'final_read_log_alphas'):
+            return ep_model.final_read_log_alphas
+        if hasattr(ep_model.transformer, 'final_read_log_alphas'):
+            return ep_model.transformer.final_read_log_alphas
+        raise AttributeError("Can't find final_read_log_alphas on the model")
     raise ValueError(f"Unknown reader kind: {kind}")
 
 
@@ -482,7 +485,18 @@ def warmstart_ep_from_eap(
             continue
         try:
             p_kind, p_layer, p_head, _ = _parse_eap_node_name(get_parent(edge))
-            c_kind, c_layer, c_head, c_qkv = _parse_eap_node_name(get_child(edge))
+            child_name = get_child(edge)
+            edge_name = edge.get('name', '') if isinstance(edge, dict) else ''
+            qkv_hint = None
+            for q in ('<q>', '<k>', '<v>'):
+                if edge_name.endswith(q):
+                    qkv_hint = q[1]
+                    break
+            if qkv_hint is not None and not child_name.endswith(('<q>', '<k>', '<v>')):
+                child_name_for_parse = f"{child_name}<{qkv_hint}>"
+            else:
+                child_name_for_parse = child_name
+            c_kind, c_layer, c_head, c_qkv = _parse_eap_node_name(child_name_for_parse)
             # writer side
             if p_kind == "embed":
                 w: WriterKey = ("embed", None, None)
