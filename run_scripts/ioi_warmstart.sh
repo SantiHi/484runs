@@ -34,7 +34,7 @@ N_VAL=200
 
 # Path to the warm-started checkpoint built by the bridge module.
 # Adjust this if you saved it somewhere else.
-WARMSTART_CKPT="/content/drive/MyDrive/484-results/warmstart_ckpt"
+WARMSTART_CKPT="/content/drive/MyDrive/EAP-and-Edge/warmstart/warmstart_ckpt"
 
 python src/prune/fpt2_ioi.py \
     --report_to none \
