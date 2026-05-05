@@ -137,6 +137,72 @@ def _fit_logistic_to_target_keep(
 
 
 # ---------------------------------------------------------------------------
+# Sign-aware variant (our novel contribution)
+# ---------------------------------------------------------------------------
+def _signed_keep_probs(
+    edges: List[Tuple[str, str, float]],
+    layer_of_edge: Callable[[str, str], int],
+    target_mean_keep: float,
+    slope: float = 8.0,
+) -> List[float]:
+    """Sign-aware initialization.
+
+    Mondorf takes abs(score), losing sign information. Here we keep it:
+    - Positive-attribution edges (helping the task): high |score| -> high keep_prob
+    - Negative-attribution edges (hurting the task): high |score| -> LOW keep_prob
+
+    Both groups are rank-normalized within (sign, layer), and the
+    keep_prob calibration target is enforced over the full set.
+    """
+    n = len(edges)
+    signs = np.array([1 if s > 0 else (-1 if s < 0 else 0) for (_, _, s) in edges])
+    abs_scores = np.array([abs(s) for (_, _, s) in edges], dtype=np.float64)
+    layers = np.array([layer_of_edge(w, r) for (w, r, _) in edges])
+
+    ranks = np.zeros(n, dtype=np.float64)
+    for sign_val in (-1, 0, 1):
+        for L in np.unique(layers):
+            mask = (signs == sign_val) & (layers == L)
+            idxs = np.where(mask)[0]
+            if len(idxs) == 0:
+                continue
+            sub = abs_scores[idxs]
+            order = np.argsort(sub, kind="stable")
+            r = np.empty_like(order, dtype=np.float64)
+            r[order] = np.arange(len(sub))
+            unique_vals, inv = np.unique(sub, return_inverse=True)
+            for v_idx in range(len(unique_vals)):
+                tie_mask = inv == v_idx
+                r[tie_mask] = r[tie_mask].mean()
+            if len(sub) > 1:
+                r /= (len(sub) - 1)
+            else:
+                r[:] = 0.5
+            ranks[idxs] = r
+
+    target = float(min(max(target_mean_keep, 1e-3), 1.0 - 1e-3))
+
+    def keep_probs_at(bias: float) -> np.ndarray:
+        p = np.zeros(n, dtype=np.float64)
+        pos = signs > 0
+        neg = signs < 0
+        zer = signs == 0
+        p[pos] = 1.0 / (1.0 + np.exp(-slope * (ranks[pos] - bias)))
+        p[neg] = 1.0 / (1.0 + np.exp(+slope * (ranks[neg] - bias)))
+        p[zer] = 1.0 / (1.0 + np.exp(-slope * (0.5 - bias)))
+        return p
+
+    lo, hi = -5.0, 5.0
+    for _ in range(60):
+        bias = (lo + hi) / 2.0
+        if keep_probs_at(bias).mean() > target:
+            lo = bias
+        else:
+            hi = bias
+    return keep_probs_at((lo + hi) / 2.0).tolist()
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 @dataclass
@@ -144,6 +210,7 @@ class WarmStartConfig:
     start_sparsity: float = 0.90
     logistic_slope: float = 8.0
     layer_grouping: str = "reader"   # only 'reader' supported here
+    use_sign_aware: bool = False      # if True, use signed variant (our contribution)
 
 
 def warmstart_ep_from_eap(
@@ -194,17 +261,23 @@ def warmstart_ep_from_eap(
         print(f"[warmstart] harvested {len(triples)} EP edges from "
               f"{len(edges_iter)} EAP edges (skipped {skipped})")
 
-    # Rank-normalize per reader-layer
-    ranks = _rank_normalize_per_layer(
-        triples,
-        layer_of=lambda r: _ep_reader_layer(r, n_layers),
-    )
-
-    # Logistic fit
     target_keep = 1.0 - config.start_sparsity
-    keep_probs = _fit_logistic_to_target_keep(
-        ranks, target_keep, slope=config.logistic_slope,
-    )
+
+    if config.use_sign_aware:
+        keep_probs = _signed_keep_probs(
+            triples,
+            layer_of_edge=lambda _, r: _ep_reader_layer(r, n_layers),
+            target_mean_keep=target_keep,
+            slope=config.logistic_slope,
+        )
+    else:
+        ranks = _rank_normalize_per_layer(
+            triples,
+            layer_of=lambda r: _ep_reader_layer(r, n_layers),
+        )
+        keep_probs = _fit_logistic_to_target_keep(
+            ranks, target_keep, slope=config.logistic_slope,
+        )
     if verbose:
         print(f"[warmstart] target mean keep = {target_keep:.3f}, "
               f"actual mean keep = {np.mean(keep_probs):.3f}")
