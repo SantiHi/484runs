@@ -144,15 +144,13 @@ def _signed_keep_probs(
     layer_of_edge: Callable[[str, str], int],
     target_mean_keep: float,
     slope: float = 8.0,
+    neg_damping: float = 0.0,
 ) -> List[float]:
-    """Sign-aware initialization.
+    """Sign-aware initialization with damping.
 
-    Mondorf takes abs(score), losing sign information. Here we keep it:
-    - Positive-attribution edges (helping the task): high |score| -> high keep_prob
-    - Negative-attribution edges (hurting the task): high |score| -> LOW keep_prob
-
-    Both groups are rank-normalized within (sign, layer), and the
-    keep_prob calibration target is enforced over the full set.
+    neg_damping=0.0 -> full sign inversion (most aggressive)
+    neg_damping=0.5 -> negatives get blended treatment
+    neg_damping=1.0 -> negatives treated identically to positives (= abs-only)
     """
     n = len(edges)
     signs = np.array([1 if s > 0 else (-1 if s < 0 else 0) for (_, _, s) in edges])
@@ -188,7 +186,9 @@ def _signed_keep_probs(
         neg = signs < 0
         zer = signs == 0
         p[pos] = 1.0 / (1.0 + np.exp(-slope * (ranks[pos] - bias)))
-        p[neg] = 1.0 / (1.0 + np.exp(+slope * (ranks[neg] - bias)))
+        p_neg_full_invert = 1.0 / (1.0 + np.exp(+slope * (ranks[neg] - bias)))
+        p_neg_as_positive = 1.0 / (1.0 + np.exp(-slope * (ranks[neg] - bias)))
+        p[neg] = (1 - neg_damping) * p_neg_full_invert + neg_damping * p_neg_as_positive
         p[zer] = 1.0 / (1.0 + np.exp(-slope * (0.5 - bias)))
         return p
 
@@ -199,7 +199,8 @@ def _signed_keep_probs(
             lo = bias
         else:
             hi = bias
-    return keep_probs_at((lo + hi) / 2.0).tolist()
+    bias = (lo + hi) / 2.0
+    return keep_probs_at(bias).tolist()
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +212,7 @@ class WarmStartConfig:
     logistic_slope: float = 8.0
     layer_grouping: str = "reader"   # only 'reader' supported here
     use_sign_aware: bool = False      # if True, use signed variant (our contribution)
+    neg_damping: float = 0.0          # 0.0=full inversion, 1.0=abs-only (sign-aware only)
 
 
 def warmstart_ep_from_eap(
@@ -269,6 +271,7 @@ def warmstart_ep_from_eap(
             layer_of_edge=lambda _, r: _ep_reader_layer(r, n_layers),
             target_mean_keep=target_keep,
             slope=config.logistic_slope,
+            neg_damping=config.neg_damping,
         )
     else:
         ranks = _rank_normalize_per_layer(
